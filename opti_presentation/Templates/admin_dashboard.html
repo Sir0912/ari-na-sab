@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>OPTI Admin Dashboard</title>
+  <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <style>
+    body { font-family: Arial,sans-serif; margin:0; background:#f4f4f4; }
+    .layout { display:flex; height:100vh; }
+    .sidebar { width:220px; background:#2c3e50; color:#fff; padding:20px; flex-shrink:0; }
+    .sidebar h2.logo { font-size:24px; margin-bottom:20px; }
+    .sidebar ul { padding:0; margin:0; }
+    .sidebar ul li { list-style:none; margin:15px 0; cursor:pointer; }
+    .sidebar ul li.active { font-weight:bold; }
+    .sidebar ul li a { color:#fff; text-decoration:none; }
+    .main { flex:1; padding:20px; overflow-y:auto; }
+    .topbar { display:flex; justify-content:space-between; margin-bottom:20px; align-items:center; }
+    .stats-container { display:flex; gap:20px; margin-bottom:20px; }
+    .card { flex:1; background:#f39c12; padding:20px; border-radius:10px; color:#fff; text-align:center; }
+    .section { display:none; }
+    .section.show { display:block; }
+    .container { display:flex; gap:20px; flex-wrap:wrap; }
+    .employee-form { flex:1; min-width:250px; background:#fff; padding:15px; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.2); }
+    .employee-form input, .employee-form select, .employee-form button { width:100%; margin:6px 0; padding:8px; border-radius:6px; border:1px solid #ccc; box-sizing:border-box; }
+    .employee-form button { background:#e67e22; color:#fff; font-weight:bold; cursor:pointer; transition:0.3s; }
+    .employee-form button:hover { background:#d35400; }
+    .employee-table { flex:2; min-width:350px; background:#fff; padding:15px; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.2); max-height:500px; overflow-y:auto; }
+    .employee-table table { width:100%; border-collapse:collapse; }
+    .employee-table th, .employee-table td { padding:8px; border-bottom:1px solid #ddd; text-align:left; }
+    .employee-table th { background:#e67e22; color:#fff; position:sticky; top:0; }
+    .employee-table .drop-btn { background:red; color:#fff; padding:5px 10px; border:none; border-radius:4px; cursor:pointer; }
+    .employee-table .drop-btn:hover { background:darkred; }
+    .table-container { max-height:400px; overflow-y:auto; margin-top:10px; border-radius:10px; border:1px solid #ccc; background:#fff; }
+    .table-container table { width:100%; border-collapse:collapse; }
+    .table-container th, .table-container td { padding:10px; border-bottom:1px solid #ddd; text-align:left; }
+    .table-container th { background:#e67e22; color:#fff; position:sticky; top:0; }
+    .export-btn { padding:8px 12px; background:#e67e22; color:#fff; border:none; cursor:pointer; margin-bottom:10px; border-radius:6px; }
+    .live-dot { width:12px; height:12px; background:#27ae60; border-radius:50%; display:inline-block; margin-right:5px; animation:pulse 1s infinite; }
+    @keyframes pulse { 0%{opacity:1} 50%{opacity:0.5} 100%{opacity:1} }
+    .badge-time-out { background:#27ae60; color:white; padding:3px 8px; border-radius:4px; font-size:12px; }
+    .badge-active { background:#f39c12; color:white; padding:3px 8px; border-radius:4px; font-size:12px; }
+    .toast-notification { position:fixed; top:20px; right:20px; z-index:9999; color:white; padding:15px 20px; border-radius:8px; box-shadow:0 4px 15px rgba(0,0,0,0.3); min-width:280px; }
+    .toast-success { background:#27ae60; }
+    .toast-error { background:#e74c3c; }
+    .toast-info { background:#3498db; }
+    .settings-box { background:white; padding:20px; border-radius:10px; margin-bottom:20px; box-shadow:0 2px 5px rgba(0,0,0,0.2); }
+    .settings-box h3 { margin-top:0; color:#2c3e50; }
+    .settings-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:8px 0; }
+    .settings-row label { font-weight:bold; min-width:120px; color:#2c3e50; }
+    .settings-row input[type="number"] { width:90px; padding:7px; border:1px solid #ccc; border-radius:4px; font-size:15px; }
+    .settings-row input[type="time"] { padding:7px; border:1px solid #ccc; border-radius:4px; font-size:15px; }
+    .settings-box .save-btn { padding:9px 22px; background:#27ae60; color:white; border:none; border-radius:4px; cursor:pointer; font-size:14px; margin-top:10px; }
+    .settings-box .save-btn:hover { background:#219a52; }
+    .settings-note { font-size:13px; color:#777; margin-bottom:8px; }
+    .modal-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:none; justify-content:center; align-items:center; z-index:9999; }
+    .modal-overlay.show { display:flex; }
+    .modal-box { background:white; padding:30px; border-radius:10px; text-align:center; width:370px; box-shadow:0 5px 20px rgba(0,0,0,0.3); }
+    .modal-box h3 { color:#e74c3c; margin-top:0; }
+    .modal-box p { color:#333; font-size:15px; }
+    .modal-buttons { margin-top:20px; display:flex; gap:10px; justify-content:center; }
+    .modal-btn { padding:10px 25px; border:none; border-radius:5px; cursor:pointer; font-size:14px; font-weight:bold; }
+    .modal-btn-cancel { background:#95a5a6; color:white; }
+    .modal-btn-confirm { background:#e74c3c; color:white; }
+    .modal-btn-green { background:#27ae60; color:white; }
+    #manual-modal .modal-box { width:400px; text-align:left; }
+    #manual-modal h3 { color:#2c3e50; }
+    .manual-form-row { margin:10px 0; }
+    .manual-form-row label { display:block; font-weight:bold; margin-bottom:4px; color:#2c3e50; font-size:14px; }
+    .manual-form-row input[type="time"] { width:100%; padding:8px; border:1px solid #ccc; border-radius:6px; font-size:14px; box-sizing:border-box; }
+    .manual-type-tabs { display:flex; gap:8px; margin-bottom:14px; }
+    .manual-tab { flex:1; padding:8px; border:2px solid #ccc; border-radius:6px; background:#f9f9f9; cursor:pointer; font-weight:bold; font-size:13px; text-align:center; }
+    .manual-tab.active { border-color:#27ae60; background:#e8f8ef; color:#1a7a44; }
+    .stop-btn { background:#e74c3c; color:#fff; padding:4px 10px; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold; }
+    .stop-btn:hover { background:#c0392b; }
+    .edit-btn { background:#edc70b; color:white; padding:5px 10px; border:none; border-radius:4px; cursor:pointer; text-decoration:none; display:inline-block; margin-right:5px; font-size:12px; }
+    .edit-btn:hover { background:#f1e610; }
+    .manual-btn { background:#3498db; color:#fff; padding:5px 10px; border:none; border-radius:4px; cursor:pointer; font-size:12px; margin-right:4px; }
+    .manual-btn:hover { background:#2980b9; }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <h2 class="logo">OPTI Admin</h2>
+    <ul>
+      <li class="active" onclick="showSection('dashboard')">Dashboard</li>
+      <li onclick="showSection('attendance')">Attendance</li>
+      <li onclick="showSection('salary')">Salary</li>
+      <li onclick="showSection('history_records')">History Records</li>
+      <li onclick="showSection('employees')">Employees</li>
+      <li onclick="showSection('employee_stats')">📊 Employee Stats</li>
+      <li onclick="showSection('claims_admin')">💸 Salary Claims <span id="claims-badge" style="display:none; background:#e67e22; color:#fff; border-radius:10px; padding:1px 7px; font-size:11px; margin-left:4px;"></span></li>
+      <li onclick="showSection('password_requests')">🔑 Password Requests <span id="pw-badge" style="display:none; background:#e74c3c; color:#fff; border-radius:10px; padding:1px 7px; font-size:11px; margin-left:4px;"></span></li>
+      <li onclick="showSection('settings')">Salary Configuration</li>
+      <li><a href="{{ url_for('logout') }}">Logout</a></li>
+    </ul>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <h1>Admin Dashboard <span class="live-dot"></span></h1>
+      <div class="admin-name">Welcome, {{ admin_name }}</div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="dashboard" class="section show">
+      <div class="stats-container">
+        <div class="card"><h3>Total Employees</h3><p id="total-employees-count">{{ total_employees }}</p></div>
+        <div class="card"><h3>Present Today</h3><p id="present-count">{{ present_today }}</p></div>
+        <div class="card"><h3>Total Salary Today</h3><p>₱<span id="salary-count">{{ "%.2f"|format(total_salary) }}</span></p></div>
+      </div>
+    </div>
+
+    <!-- ATTENDANCE -->
+    <div id="attendance" class="section">
+      <h2>Attendance Records <span class="live-dot"></span></h2>
+      <form action="{{ url_for('export_excel') }}" method="get" style="display:inline;">
+        <button class="export-btn" type="submit">Export to Excel</button>
+      </form>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Time In</th><th>Time Out</th><th>Status</th><th>Action</th></tr>
+          </thead>
+          <tbody id="attendance-table">
+            {% for r in records %}
+            <tr id="row-{{ r.id }}">
+              <td>{{ r.name }}</td>
+              <td>{{ r.time_in.strftime('%I:%M %p') if r.time_in else '-' }}</td>
+              <td>{{ r.time_out.strftime('%I:%M %p') if r.time_out else '-' }}</td>
+              <td>
+                {% if r.time_out %}<span class="badge-time-out">Completed</span>
+                {% else %}<span class="badge-active">Active</span>{% endif %}
+              </td>
+              <td>
+                {% if not r.time_out %}
+                  <button class="stop-btn" onclick="confirmForceSignout({{ r.id }}, '{{ r.name }}')">Stop</button>
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SALARY -->
+    <div id="salary" class="section">
+      <h2>Salary Status</h2>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Duration (paid min)</th><th>Salary (₱)</th><th>Status</th></tr>
+          </thead>
+          <tbody id="salary-table">
+            {% for r in records %}
+            <tr id="salary-row-{{ r.id }}">
+              <td>{{ r.name }}</td>
+              <td>{{ r.duration }} min</td>
+              <td>₱{{ "%.2f"|format(r.salary or 0) }}</td>
+              <td>
+                {% if r.time_out %}<span class="badge-time-out">Completed</span>
+                {% else %}<span class="badge-active">Active</span>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div id="history_records" class="section">
+      <h2>History Records</h2>
+      <div class="table-container">
+        <table>
+          <thead><tr><th>#</th><th>Filename</th><th>Download</th></tr></thead>
+          <tbody id="history-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- EMPLOYEE STATS -->
+    <div id="employee_stats" class="section">
+      <h2>📊 Employee Stats</h2>
+      <p style="color:#7f8c8d; font-size:14px; margin-bottom:16px;">
+        Select an employee to view their total days worked, hours, earned salary and remaining balance.
+      </p>
+
+      <!-- Employee Selector -->
+      <div style="background:#fff; padding:16px; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin-bottom:20px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+        <select id="stats-emp-select" style="padding:9px 12px; border:1px solid #ccc; border-radius:6px; font-size:14px; min-width:200px;">
+          <option value="">— Select Employee —</option>
+          {% for e in employees %}
+          <option value="{{ e.id_employee }}">{{ e.name }}</option>
+          {% endfor %}
+        </select>
+        <button onclick="loadEmployeeStats()" style="padding:9px 20px; background:#2c3e50; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:14px;">View Stats</button>
+      </div>
+
+      <!-- Stats Cards -->
+      <div id="emp-stats-cards" style="display:none;">
+        <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:20px;">
+          <div style="flex:1; min-width:140px; background:#27ae60; border-radius:10px; padding:18px; color:#fff; text-align:center;">
+            <div style="font-size:22px; font-weight:bold;" id="stat-balance">₱0.00</div>
+            <div style="font-size:12px; opacity:0.9; margin-top:4px;">Balance</div>
+          </div>
+          <div style="flex:1; min-width:140px; background:#e67e22; border-radius:10px; padding:18px; color:#fff; text-align:center;">
+            <div style="font-size:22px; font-weight:bold;" id="stat-earned">₱0.00</div>
+            <div style="font-size:12px; opacity:0.9; margin-top:4px;">Total Earned</div>
+          </div>
+          <div style="flex:1; min-width:140px; background:#3498db; border-radius:10px; padding:18px; color:#fff; text-align:center;">
+            <div style="font-size:22px; font-weight:bold;" id="stat-days">0</div>
+            <div style="font-size:12px; opacity:0.9; margin-top:4px;">Days Worked</div>
+          </div>
+          <div style="flex:1; min-width:140px; background:#2c3e50; border-radius:10px; padding:18px; color:#fff; text-align:center;">
+            <div style="font-size:22px; font-weight:bold;" id="stat-hours">0h</div>
+            <div style="font-size:12px; opacity:0.9; margin-top:4px;">Total Hours</div>
+          </div>
+          <div style="flex:1; min-width:140px; background:#8e44ad; border-radius:10px; padding:18px; color:#fff; text-align:center;">
+            <div style="font-size:22px; font-weight:bold;" id="stat-claimed">₱0.00</div>
+            <div style="font-size:12px; opacity:0.9; margin-top:4px;">Total Claimed</div>
+          </div>
+        </div>
+
+        <!-- Claims history for selected employee -->
+        <h3 style="color:#2c3e50; margin-bottom:10px;">Claims History</h3>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr><th>#</th><th>Amount</th><th>Note</th><th>Date</th></tr>
+            </thead>
+            <tbody id="emp-claims-table">
+              <tr><td colspan="4" style="text-align:center;color:#aaa;padding:16px;">No claims yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SALARY CLAIMS ADMIN -->
+    <div id="claims_admin" class="section">
+      <h2>💸 Salary Claims</h2>
+      <p style="color:#7f8c8d; font-size:14px; margin-bottom:16px;">
+        Record a salary claim for an employee. The amount will be deducted from their balance.
+      </p>
+
+      <!-- Add Claim Form -->
+      <div style="background:#fff; padding:20px; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin-bottom:20px; max-width:500px;">
+        <h3 style="margin-top:0; color:#2c3e50;">➕ Add Claim</h3>
+        <div style="margin-bottom:12px;">
+          <label style="display:block; font-weight:bold; margin-bottom:4px; font-size:14px;">Employee</label>
+          <select id="claim-emp-select" style="width:100%; padding:9px; border:1px solid #ccc; border-radius:6px; font-size:14px;">
+            <option value="">— Select Employee —</option>
+            {% for e in employees %}
+            <option value="{{ e.id_employee }}" data-name="{{ e.name }}">{{ e.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="display:block; font-weight:bold; margin-bottom:4px; font-size:14px;">Amount (₱)</label>
+          <input type="number" id="claim-amount-input" placeholder="e.g. 500" min="1" step="0.01"
+            style="width:100%; padding:9px; border:1px solid #ccc; border-radius:6px; font-size:14px; box-sizing:border-box;">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block; font-weight:bold; margin-bottom:4px; font-size:14px;">Note (optional)</label>
+          <input type="text" id="claim-note-input" placeholder="e.g. weekly pay"
+            style="width:100%; padding:9px; border:1px solid #ccc; border-radius:6px; font-size:14px; box-sizing:border-box;">
+        </div>
+        <button onclick="submitAdminClaim()"
+          style="padding:10px 24px; background:#27ae60; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:14px; font-weight:bold;">
+          💰 Record Claim
+        </button>
+        <p id="claim-status" style="margin-top:10px; font-size:13px;"></p>
+      </div>
+
+      <!-- All Claims Table -->
+      <h3 style="color:#2c3e50; margin-bottom:10px;">All Claims</h3>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr><th>#</th><th>Employee</th><th>Amount</th><th>Note</th><th>Date</th></tr>
+          </thead>
+          <tbody id="all-claims-table">
+            <tr><td colspan="5" style="text-align:center;color:#aaa;padding:16px;">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PASSWORD RESET REQUESTS -->
+    <div id="password_requests" class="section">
+      <h2>🔑 Password Reset Requests</h2>
+      <p style="color:#7f8c8d; font-size:14px; margin-bottom:16px;">
+        Employees who forgot their password will appear here. Set a temporary password and approve.
+      </p>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Employee</th>
+              <th>Requested At</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="password-requests-table">
+            <tr><td colspan="4" style="text-align:center; color:#aaa; padding:20px;">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- EMPLOYEES -->
+    <div id="employees" class="section">
+      <h2>Manage Employees</h2>
+      <div class="container">
+        <form class="employee-form" id="employee-form">
+          <input type="hidden" name="id_inp" id="id_inp" value="">
+          <input type="text" name="name_inp" placeholder="Name" required>
+          <input type="number" name="age_inp" placeholder="Age" required>
+          <select name="sex_inp" required>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+          </select>
+          <input type="email" name="email_inp" placeholder="Email" required>
+          <input type="text" name="num_inp" placeholder="Phone Number" required>
+          <input type="text" name="rfid_inp" placeholder="RFID UID" required>
+          <button type="submit">Add Employee</button>
+        </form>
+
+        <div class="employee-table">
+          <table>
+            <thead>
+              <tr><th>#</th><th>Name</th><th>Email</th><th>Phone</th><th>RFID</th><th>Action</th></tr>
+            </thead>
+            <tbody id="employee-table-body">
+              {% for e in employees %}
+              <tr>
+                <td></td>
+                <td>{{ e.name }}</td>
+                <td>{{ e.email }}</td>
+                <td>{{ e.number }}</td>
+                <td>{{ e.rfid }}</td>
+                <td>
+                  <button class="manual-btn" onclick="openManualModal({{ e.id_employee }}, '{{ e.name }}')">Manual</button>
+                  <a href="{{ url_for('edit_employee', emp_id=e.id_employee) }}" class="edit-btn">Edit</a>
+                  <button class="drop-btn" data-id="{{ e.id_employee }}" data-name="{{ e.name }}">Drop</button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="settings" class="section">
+      <h2>Settings</h2>
+      <div class="settings-box">
+        <h3>💰 Salary Rate Configuration</h3>
+        <p class="settings-note">The salary system counts paid minutes only, then converts to currency at the rate below.</p>
+        <div class="settings-row">
+          <label>Rate per minute</label>
+          <input type="number" id="salary-rate-input" value="{{ salary_rate }}" step="0.5" min="0">
+          <span>pesos / minute</span>
+        </div>
+      </div>
+      <div class="settings-box">
+        <h3>🕐 Pay Time Window</h3>
+        <p class="settings-note">Only time worked within this window counts toward salary. Leave blank for all hours.</p>
+        <div class="settings-row">
+          <label>Work starts</label>
+          <input type="time" id="pay-start-input" value="{{ pay_start }}">
+        </div>
+        <div class="settings-row">
+          <label>Work ends</label>
+          <input type="time" id="pay-end-input" value="{{ pay_end }}">
+        </div>
+      </div>
+      <div class="settings-box">
+        <h3>☕ Break Time</h3>
+        <p class="settings-note">During this window salary will not accumulate. Leave blank to disable.</p>
+        <div class="settings-row">
+          <label>Break starts</label>
+          <input type="time" id="break-start-input" value="{{ break_start }}">
+        </div>
+        <div class="settings-row">
+          <label>Break ends</label>
+          <input type="time" id="break-end-input" value="{{ break_end }}">
+        </div>
+      </div>
+      <button class="settings-box save-btn" onclick="saveAllSettings()" style="margin-top:0;">💾 Save All Settings</button>
+      <p id="salary-status" style="margin-top:10px; font-size:14px; color:#27ae60;"></p>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE MODAL -->
+<div class="modal-overlay" id="delete-modal">
+  <div class="modal-box">
+    <h3>⚠️ Delete Employee</h3>
+    <p id="delete-message">Are you sure you want to delete this employee?</p>
+    <div class="modal-buttons">
+      <button class="modal-btn modal-btn-cancel" onclick="closeDeleteModal()">Cancel</button>
+      <button class="modal-btn modal-btn-confirm" id="confirm-delete-btn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal-box">
+    <h3>✏️ Edit Employee</h3>
+    <p>Are you sure you want to edit <strong id="edit-employee-name"></strong>?</p>
+    <div class="modal-buttons">
+      <button class="modal-btn modal-btn-cancel" onclick="closeEditModal()">Cancel</button>
+      <button class="modal-btn modal-btn-confirm" id="confirm-edit-btn">Edit</button>
+    </div>
+  </div>
+</div>
+
+<!-- FORCE SIGN-OUT MODAL -->
+<div class="modal-overlay" id="force-signout-modal">
+  <div class="modal-box">
+    <h3>🛑 Force Sign-Out</h3>
+    <p id="force-signout-message">Are you sure you want to sign out this employee?</p>
+    <div class="modal-buttons">
+      <button class="modal-btn modal-btn-cancel" onclick="closeForceSignoutModal()">Cancel</button>
+      <button class="modal-btn modal-btn-confirm" id="confirm-force-signout-btn">Sign Out Now</button>
+    </div>
+  </div>
+</div>
+
+<!-- MANUAL TIME IN/OUT MODAL -->
+<div class="modal-overlay" id="manual-modal">
+  <div class="modal-box">
+    <h3>🕑 Manual Attendance</h3>
+    <p style="color:#555; font-size:13px; margin-bottom:12px;">
+      Use this if an employee lost their card or forgot to sign out.<br>
+      Employee: <strong id="manual-emp-name"></strong>
+    </p>
+    <div class="manual-type-tabs">
+      <div class="manual-tab active" id="tab-time-in" onclick="setManualTab('in')">⏰ Time In</div>
+      <div class="manual-tab" id="tab-time-out" onclick="setManualTab('out')">✅ Time Out</div>
+    </div>
+    <div class="manual-form-row">
+      <label id="manual-time-label">Time In</label>
+      <input type="time" id="manual-time-input">
+    </div>
+    <div class="modal-buttons" style="margin-top:16px;">
+      <button class="modal-btn modal-btn-cancel" onclick="closeManualModal()">Cancel</button>
+      <button class="modal-btn modal-btn-green" onclick="submitManual()">Submit</button>
+    </div>
+  </div>
+</div>
+
+<!-- APPROVE PASSWORD RESET MODAL -->
+<div class="modal-overlay" id="approve-modal">
+  <div class="modal-box">
+    <h3 style="color:#27ae60;">🔑 Approve Password Reset</h3>
+    <p>Set a temporary password for <strong id="approve-emp-name"></strong>.<br>
+    <span style="font-size:13px;color:#7f8c8d;">The employee will use this to log in and set a new password.</span></p>
+    <input type="text" id="temp-password-input"
+      placeholder="Enter temporary password"
+      style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;font-size:15px;box-sizing:border-box;margin-top:8px;">
+    <div class="modal-buttons">
+      <button class="modal-btn modal-btn-cancel" onclick="closeApproveModal()">Cancel</button>
+      <button class="modal-btn" style="background:#27ae60;color:#fff;" onclick="submitApprove()">Approve</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const socket = io();
+socket.on('connect', () => console.log('✓ SocketIO connected!'));
+socket.on('disconnect', () => console.log('✗ SocketIO disconnected'));
+
+// =====================================================
+// DAILY RESET — clears tables when date changes
+// =====================================================
+let currentDate = new Date().toLocaleDateString();
+
+function checkDayChange() {
+    const today = new Date().toLocaleDateString();
+    if (today !== currentDate) {
+        currentDate = today;
+        document.getElementById('attendance-table').innerHTML = '';
+        document.getElementById('salary-table').innerHTML = '';
+        document.getElementById('present-count').textContent = '0';
+        document.getElementById('salary-count').textContent = '0.00';
+        refreshDashboard();
+        refreshAttendance();
+        refreshSalary();
+        showToast('📅 New Day', 'Attendance reset for today.', 'info');
+    }
+}
+
+// =====================================================
+// REAL-TIME: ATTENDANCE & SALARY
+// =====================================================
+socket.on("attendance_update", function(data) {
+    const presentEl = document.getElementById("present-count");
+    const salaryEl  = document.getElementById("salary-count");
+    if (data.present_count !== undefined) presentEl.textContent = data.present_count;
+    if (data.total_salary  !== undefined) salaryEl.textContent  = data.total_salary.toFixed(2);
+
+    const tableBody = document.getElementById("attendance-table");
+    let row = document.getElementById("row-" + data.record_id);
+    if (!row) {
+        row = document.createElement("tr");
+        row.id = "row-" + data.record_id;
+        tableBody.prepend(row);
+    }
+    const isActive = !data.time_out || data.time_out === "-";
+    const stopBtn  = isActive
+        ? `<button class="stop-btn" onclick="confirmForceSignout(${data.record_id}, '${data.name}')">Stop</button>`
+        : "—";
+    row.innerHTML = `
+        <td><strong>${data.name}</strong>${data.manual ? ' <span style="color:#3498db;font-size:11px;">[Manual]</span>' : ''}</td>
+        <td>${data.time_in}</td>
+        <td>${isActive ? '-' : data.time_out}</td>
+        <td>${isActive ? '<span class="badge-active">Active</span>' : '<span class="badge-time-out">Completed</span>'}</td>
+        <td>${stopBtn}</td>
+    `;
+
+    const salaryTableBody = document.getElementById("salary-table");
+    let salaryRow = document.getElementById("salary-row-" + data.record_id);
+    if (!salaryRow) {
+        salaryRow = document.createElement("tr");
+        salaryRow.id = "salary-row-" + data.record_id;
+        salaryTableBody.prepend(salaryRow);
+    }
+    salaryRow.innerHTML = `
+        <td><strong>${data.name}</strong></td>
+        <td>${data.duration || 0} min</td>
+        <td>₱${(data.salary || 0).toFixed(2)}</td>
+        <td>${isActive ? '<span class="badge-active">Active</span>' : '<span class="badge-time-out">Completed</span>'}</td>
+    `;
+
+    const tag  = data.forced ? '🛑 FORCE SIGN-OUT' : (data.manual ? '📋 MANUAL' : (data.action === "time_in" ? '⏰ TIME IN' : '✅ TIME OUT'));
+    const type = data.action === "time_in" ? 'info' : 'success';
+    const msg  = data.action === "time_in"
+        ? `${data.name} — ${data.time_in}`
+        : `${data.name} — ${data.time_out}`;
+    showToast(tag, msg, type);
+});
+
+// Too soon warning toast
+socket.on("too_soon", function(data) {
+    showToast('⚠️ TOO SOON', data.message, 'error');
+});
+
+socket.on("salary_update", function(data) {
+    const salaryTableBody = document.getElementById("salary-table");
+    let salaryRow = document.getElementById("salary-row-" + data.record_id);
+    if (!salaryRow) {
+        salaryRow = document.createElement("tr");
+        salaryRow.id = "salary-row-" + data.record_id;
+        salaryTableBody.prepend(salaryRow);
+    }
+    salaryRow.innerHTML = `
+        <td><strong>${data.name}</strong></td>
+        <td>${data.duration} min</td>
+        <td>₱${data.salary.toFixed(2)}</td>
+        <td><span class="badge-active">Active</span></td>
+    `;
+});
+
+// =====================================================
+// TOAST
+// =====================================================
+function showToast(title, message, type='success') {
+    const toast = document.createElement('div');
+    toast.className = `toast-notification toast-${type}`;
+    toast.innerHTML = `<strong>${title}</strong><br>${message}`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+}
+
+// =====================================================
+// SECTION SWITCHING
+// =====================================================
+function showSection(id) {
+    document.querySelectorAll(".section").forEach(s => s.classList.remove("show"));
+    document.getElementById(id).classList.add("show");
+    document.querySelectorAll(".sidebar ul li").forEach(li => li.classList.remove("active"));
+    const li = Array.from(document.querySelectorAll(".sidebar ul li"))
+                    .find(l => l.textContent.toLowerCase().includes(id.replace("_"," ")));
+    if (li) li.classList.add("active");
+    if (id === "history_records") refreshHistoryFiles();
+    if (id === "claims_admin")    refreshAllClaims();
+    if (id === "password_requests") refreshPasswordRequests();
+}
+
+// =====================================================
+// SETTINGS
+// =====================================================
+function saveAllSettings() {
+    const payload = {
+        salary_per_minute: parseFloat(document.getElementById('salary-rate-input').value) || 5,
+        pay_start:   document.getElementById('pay-start-input').value,
+        pay_end:     document.getElementById('pay-end-input').value,
+        break_start: document.getElementById('break-start-input').value,
+        break_end:   document.getElementById('break-end-input').value,
+    };
+    fetch("/api/update_salary_settings", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById('salary-status').textContent = "✅ Settings saved!";
+        setTimeout(() => document.getElementById('salary-status').textContent = "", 3000);
+        showToast('💰 Settings Saved', `Rate: ₱${data.salary_per_minute}/min | Pay: ${data.pay_start||'any'}–${data.pay_end||'any'} | Break: ${data.break_start||'none'}–${data.break_end||'none'}`, 'success');
+    })
+    .catch(() => showToast('❌ Save Failed', 'Could not save settings.', 'error'));
+}
+function updateSalaryRate() { saveAllSettings(); }
+
+// =====================================================
+// FORCE SIGN-OUT
+// =====================================================
+let forceRecordId = null;
+
+function confirmForceSignout(recordId, name) {
+    forceRecordId = recordId;
+    document.getElementById('force-signout-message').innerHTML =
+        `Sign out <strong>${name}</strong> right now? Salary will be calculated up to this moment.`;
+    document.getElementById('force-signout-modal').classList.add('show');
+}
+function closeForceSignoutModal() {
+    document.getElementById('force-signout-modal').classList.remove('show');
+    forceRecordId = null;
+}
+document.getElementById('confirm-force-signout-btn').addEventListener('click', function() {
+    if (!forceRecordId) return;
+    fetch(`/api/force_signout/${forceRecordId}`, { method: 'POST', credentials: 'include' })
+    .then(res => res.json())
+    .then(data => {
+        closeForceSignoutModal();
+        if (data.status === 'success') {
+            showToast('🛑 Signed Out', data.message, 'success');
+        } else {
+            showToast('❌ Error', data.message, 'error');
+        }
+    })
+    .catch(() => showToast('❌ Error', 'Could not force sign-out.', 'error'));
+});
+
+// =====================================================
+// MANUAL TIME IN / OUT
+// =====================================================
+let manualEmpId   = null;
+let manualTabMode = 'in';
+
+function openManualModal(empId, empName) {
+    manualEmpId = empId;
+    document.getElementById('manual-emp-name').textContent = empName;
+    const now = new Date();
+    const hh  = String(now.getHours()).padStart(2,'0');
+    const mm  = String(now.getMinutes()).padStart(2,'0');
+    document.getElementById('manual-time-input').value = `${hh}:${mm}`;
+    setManualTab('in');
+    document.getElementById('manual-modal').classList.add('show');
+}
+function closeManualModal() {
+    document.getElementById('manual-modal').classList.remove('show');
+    manualEmpId = null;
+}
+function setManualTab(mode) {
+    manualTabMode = mode;
+    document.getElementById('tab-time-in').classList.toggle('active', mode === 'in');
+    document.getElementById('tab-time-out').classList.toggle('active', mode === 'out');
+    document.getElementById('manual-time-label').textContent = mode === 'in' ? 'Time In' : 'Time Out';
+}
+function submitManual() {
+    if (!manualEmpId) return;
+    const timeVal = document.getElementById('manual-time-input').value;
+    if (!timeVal) { showToast('❌ Error', 'Please enter a time.', 'error'); return; }
+
+    const endpoint = manualTabMode === 'in' ? '/api/manual_time_in' : '/api/manual_time_out';
+    const bodyKey  = manualTabMode === 'in' ? 'time_in' : 'time_out';
+
+    fetch(endpoint, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employee_id: manualEmpId, [bodyKey]: timeVal })
+    })
+    .then(res => res.json())
+    .then(data => {
+        closeManualModal();
+        if (data.status === 'success') {
+            showToast('📋 Manual Entry', data.message, 'success');
+        } else {
+            showToast('❌ Error', data.message, 'error');
+        }
+    })
+    .catch(() => showToast('❌ Error', 'Could not submit manual entry.', 'error'));
+}
+
+// =====================================================
+// EMPLOYEE: ADD / DROP
+// =====================================================
+let employeeToDelete = null;
+
+$(document).on('click', '.drop-btn', function() {
+    employeeToDelete = { id: $(this).data('id'), name: $(this).data('name') };
+    document.getElementById('delete-message').innerHTML =
+        `Are you sure you want to delete <strong>${employeeToDelete.name}</strong>?`;
+    document.getElementById('delete-modal').classList.add('show');
+});
+function closeDeleteModal() {
+    document.getElementById('delete-modal').classList.remove('show');
+    employeeToDelete = null;
+}
+$('#confirm-delete-btn').click(function() {
+    if (!employeeToDelete) return;
+    $.post("{{ url_for('drop_employee') }}", { employ_id: employeeToDelete.id }, function(res) {
+        if (res.status === "success") {
+            $(`.drop-btn[data-id="${employeeToDelete.id}"]`).closest('tr').remove();
+            closeDeleteModal();
+            renumberEmployeeTable();
+            showToast('✅ Employee Deleted', `${employeeToDelete.name} removed!`, 'success');
+        } else {
+            closeDeleteModal();
+            showToast('❌ Delete Failed', `Unable to delete ${employeeToDelete.name}`, 'error');
+        }
+    });
+});
+
+$('#employee-form').submit(function(e) {
+    e.preventDefault();
+    $.post("{{ url_for('add_employee') }}", $(this).serialize(), function(data) {
+        if (data.status === "error") {
+            showToast('❌ Add Failed', data.message, 'error');
+        } else {
+            appendEmployeeRow(data);
+            $('#employee-form')[0].reset();
+            showToast('✅ Employee Added', `${data.name} added successfully!`, 'success');
+        }
+    });
+});
+
+function appendEmployeeRow(emp) {
+    const tbody = $('#employee-table-body');
+    const row = `<tr>
+        <td></td>
+        <td>${emp.name}</td>
+        <td>${emp.email}</td>
+        <td>${emp.number}</td>
+        <td>${emp.rfid}</td>
+        <td>
+            <button class="manual-btn" onclick="openManualModal(${emp.id_employee}, '${emp.name}')">Manual</button>
+            <a href="/edit_employee/${emp.id_employee}" class="edit-btn">Edit</a>
+            <button class="drop-btn" data-id="${emp.id_employee}" data-name="${emp.name}">Drop</button>
+        </td>
+    </tr>`;
+    tbody.append(row);
+    renumberEmployeeTable();
+}
+function renumberEmployeeTable() {
+    $('#employee-table-body tr').each(function(i) { $(this).find('td').first().text(i+1); });
+}
+renumberEmployeeTable();
+function closeEditModal() { document.getElementById('edit-modal').classList.remove('show'); }
+
+// =====================================================
+// AUTO-REFRESH every 5 seconds
+// =====================================================
+function refreshDashboard() {
+    fetch("{{ url_for('dashboard_stats_api') }}")
+    .then(r => r.json())
+    .then(data => {
+        const te = document.getElementById("total-employees-count");
+        const pc = document.getElementById("present-count");
+        const sc = document.getElementById("salary-count");
+        if (te) te.textContent = data.total_employees;
+        if (pc) pc.textContent = data.present_today;
+        if (sc) sc.textContent = data.total_salary.toFixed(2);
+    }).catch(() => {});
+}
+
+function refreshAttendance() {
+    fetch("{{ url_for('attendance_table_api') }}")
+    .then(r => r.json())
+    .then(records => {
+        const tbody = document.getElementById("attendance-table");
+        const returnedIds = new Set();
+
+        records.forEach(r => {
+            const rowId = "row-" + r.id;
+            returnedIds.add(rowId);
+            const isActive = !r.time_out;
+            const stopBtn = isActive
+                ? `<button class="stop-btn" onclick="confirmForceSignout(${r.id}, '${r.name}')">Stop</button>`
+                : "—";
+            const html = `
+                <td>${r.name}</td>
+                <td>${r.time_in || '-'}</td>
+                <td>${r.time_out || '-'}</td>
+                <td>${isActive ? '<span class="badge-active">Active</span>' : '<span class="badge-time-out">Completed</span>'}</td>
+                <td>${stopBtn}</td>
+            `;
+            let row = document.getElementById(rowId);
+            if (!row) {
+                row = document.createElement("tr");
+                row.id = rowId;
+                tbody.prepend(row);
+            }
+            row.innerHTML = html;
+        });
+
+        // Remove stale rows from previous day
+        Array.from(tbody.querySelectorAll("tr")).forEach(row => {
+            if (!returnedIds.has(row.id)) row.remove();
+        });
+    }).catch(() => {});
+}
+
+function refreshSalary() {
+    fetch("{{ url_for('salary_table_api') }}")
+    .then(r => r.json())
+    .then(records => {
+        const tbody = document.getElementById("salary-table");
+
+        // Track which row IDs came back so we can remove stale ones (day changed)
+        const returnedIds = new Set();
+
+        records.forEach(r => {
+            const rowId = "salary-row-" + r.id;
+            returnedIds.add(rowId);
+            const isActive = !r.time_out || r.time_out === "-";
+            const html = `
+                <td>${r.name}</td>
+                <td>${r.duration || 0} min</td>
+                <td>₱${(r.salary || 0).toFixed(2)}</td>
+                <td>${isActive ? '<span class="badge-active">Active</span>' : '<span class="badge-time-out">Completed</span>'}</td>
+            `;
+            let row = document.getElementById(rowId);
+            if (!row) {
+                row = document.createElement("tr");
+                row.id = rowId;
+                tbody.prepend(row);
+            }
+            row.innerHTML = html;
+        });
+
+        // Remove rows from a previous day that no longer exist
+        Array.from(tbody.querySelectorAll("tr")).forEach(row => {
+            if (!returnedIds.has(row.id)) row.remove();
+        });
+    }).catch(() => {});
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    refreshDashboard();
+    refreshAttendance();
+    refreshSalary();
+    refreshPasswordRequests();
+    refreshAllClaims();
+});
+
+setInterval(() => {
+    checkDayChange();
+    const id = document.querySelector(".section.show")?.id;
+    if (["dashboard","attendance","salary"].includes(id)) {
+        refreshDashboard();
+        refreshAttendance();
+        refreshSalary();
+    }
+}, 5000);
+
+// =====================================================
+// HISTORY FILES
+// =====================================================
+function refreshHistoryFiles() {
+    fetch("{{ url_for('history_records_api') }}")
+    .then(r => r.json())
+    .then(files => {
+        const tbody = document.getElementById("history-table-body");
+        tbody.innerHTML = "";
+        if (!files.length) {
+            tbody.innerHTML = `<tr><td colspan="3">No history records found.</td></tr>`;
+        } else {
+            files.forEach((file, idx) => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${idx+1}</td>
+                    <td>${file}</td>
+                    <td><a href="/history_records/download/${file}">Download</a></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    });
+}
+
+// =====================================================
+// EMPLOYEE STATS
+// =====================================================
+function loadEmployeeStats() {
+    const empId = document.getElementById('stats-emp-select').value;
+    if (!empId) { showToast('❌ Error', 'Please select an employee.', 'error'); return; }
+
+    fetch(`/api/admin/employee_summary/${empId}`)
+    .then(r => r.json())
+    .then(data => {
+        if (data.status !== 'success') { showToast('❌ Error', data.message, 'error'); return; }
+
+        document.getElementById('emp-stats-cards').style.display = 'block';
+        document.getElementById('stat-balance').textContent  = `₱${data.balance.toFixed(2)}`;
+        document.getElementById('stat-earned').textContent   = `₱${data.total_earned.toFixed(2)}`;
+        document.getElementById('stat-claimed').textContent  = `₱${data.total_claimed.toFixed(2)}`;
+        document.getElementById('stat-days').textContent     = data.total_days;
+
+        const mins  = data.total_minutes;
+        const h     = Math.floor(mins / 60);
+        const m     = mins % 60;
+        document.getElementById('stat-hours').textContent = h > 0 ? `${h}h ${m}m` : `${m}m`;
+
+        // Load claims history for this employee
+        const tbody = document.getElementById('emp-claims-table');
+        if (!data.claims || !data.claims.length) {
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:#aaa;padding:16px;">No claims yet.</td></tr>`;
+        } else {
+            tbody.innerHTML = '';
+            data.claims.forEach((c, idx) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${idx + 1}</td>
+                    <td style="color:#e74c3c; font-weight:bold;">-₱${parseFloat(c.amount).toFixed(2)}</td>
+                    <td>${c.note || '—'}</td>
+                    <td>${c.claim_at}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    })
+    .catch(() => showToast('❌ Error', 'Could not load employee stats.', 'error'));
+}
+
+// =====================================================
+// ADMIN CLAIMS
+// =====================================================
+function submitAdminClaim() {
+    const empId  = document.getElementById('claim-emp-select').value;
+    const amount = parseFloat(document.getElementById('claim-amount-input').value);
+    const note   = document.getElementById('claim-note-input').value.trim();
+    const status = document.getElementById('claim-status');
+
+    if (!empId) { showToast('❌ Error', 'Please select an employee.', 'error'); return; }
+    if (!amount || amount <= 0 || isNaN(amount)) { showToast('❌ Error', 'Please enter a valid amount.', 'error'); return; }
+
+    fetch('/api/admin/claim', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ employee_id: empId, amount: amount, note: note })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'success') {
+            status.style.color = '#27ae60';
+            status.textContent = `✅ ${data.message}`;
+            document.getElementById('claim-amount-input').value = '';
+            document.getElementById('claim-note-input').value   = '';
+            showToast('💰 Claim Recorded', data.message, 'success');
+            refreshAllClaims();
+        } else {
+            status.style.color = '#e74c3c';
+            status.textContent = `❌ ${data.message}`;
+            showToast('❌ Error', data.message, 'error');
+        }
+        setTimeout(() => status.textContent = '', 4000);
+    })
+    .catch(() => showToast('❌ Error', 'Could not record claim.', 'error'));
+}
+
+function refreshAllClaims() {
+    fetch('/api/admin/all_claims')
+    .then(r => r.json())
+    .then(data => {
+        const tbody = document.getElementById('all-claims-table');
+        if (!data.claims || !data.claims.length) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#aaa;padding:16px;">No claims yet.</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = '';
+        data.claims.forEach((c, idx) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${idx + 1}</td>
+                <td><strong>${c.employee_name}</strong></td>
+                <td style="color:#e74c3c; font-weight:bold;">-₱${parseFloat(c.amount).toFixed(2)}</td>
+                <td>${c.note || '—'}</td>
+                <td>${c.claim_at}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    })
+    .catch(() => {});
+}
+
+// =====================================================
+// PASSWORD RESET REQUESTS
+// =====================================================
+let approveReqId = null;
+
+function refreshPasswordRequests() {
+    fetch('/api/password_requests')
+    .then(r => r.json())
+    .then(requests => {
+        const tbody   = document.getElementById('password-requests-table');
+        const pending = requests.filter(r => r.status === 'pending').length;
+
+        // Update sidebar badge
+        const badge = document.getElementById('pw-badge');
+        if (pending > 0) {
+            badge.textContent = pending;
+            badge.style.display = 'inline';
+        } else {
+            badge.style.display = 'none';
+        }
+
+        if (!requests.length) {
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:#aaa;padding:20px;">No requests yet.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = '';
+        requests.forEach(r => {
+            const statusColor = r.status === 'pending' ? '#f39c12' : r.status === 'approved' ? '#27ae60' : '#e74c3c';
+            const actions = r.status === 'pending'
+                ? `<button onclick="openApproveModal(${r.id}, '${r.employee_name}')"
+                       style="background:#27ae60;color:#fff;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;margin-right:4px;font-size:12px;">
+                       Approve
+                   </button>
+                   <button onclick="rejectRequest(${r.id})"
+                       style="background:#e74c3c;color:#fff;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:12px;">
+                       Reject
+                   </button>`
+                : `<span style="color:#aaa;font-size:12px;">— resolved —</span>`;
+
+            const tr = document.createElement('tr');
+            tr.id = `pw-req-${r.id}`;
+            tr.innerHTML = `
+                <td><strong>${r.employee_name}</strong></td>
+                <td style="font-size:13px;">${r.requested_at}</td>
+                <td><span style="background:${statusColor};color:#fff;padding:3px 8px;border-radius:4px;font-size:12px;">${r.status}</span></td>
+                <td>${actions}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }).catch(() => {});
+}
+
+function openApproveModal(reqId, empName) {
+    approveReqId = reqId;
+    document.getElementById('approve-emp-name').textContent = empName;
+    document.getElementById('temp-password-input').value = '';
+    document.getElementById('approve-modal').classList.add('show');
+}
+
+function closeApproveModal() {
+    document.getElementById('approve-modal').classList.remove('show');
+    approveReqId = null;
+}
+
+function submitApprove() {
+    const tempPw = document.getElementById('temp-password-input').value.trim();
+    if (!tempPw) { showToast('❌ Error', 'Please enter a temporary password.', 'error'); return; }
+
+    fetch(`/api/password_requests/approve/${approveReqId}`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ temp_password: tempPw })
+    })
+    .then(r => r.json())
+    .then(data => {
+        closeApproveModal();
+        if (data.status === 'success') {
+            showToast('✅ Approved', `Temporary password set. Tell the employee to check the app.`, 'success');
+            refreshPasswordRequests();
+        } else {
+            showToast('❌ Error', data.message, 'error');
+        }
+    })
+    .catch(() => showToast('❌ Error', 'Could not approve request.', 'error'));
+}
+
+function rejectRequest(reqId) {
+    if (!confirm('Reject this password reset request?')) return;
+    fetch(`/api/password_requests/reject/${reqId}`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showToast('🚫 Rejected', 'Request has been rejected.', 'error');
+            refreshPasswordRequests();
+        }
+    })
+    .catch(() => showToast('❌ Error', 'Could not reject request.', 'error'));
+}
+
+// Auto-refresh password requests every 10 seconds
+setInterval(refreshPasswordRequests, 10000);
+
+// Load on page open
+document.addEventListener('DOMContentLoaded', refreshPasswordRequests);
+</script>
+</body>
+</html>
